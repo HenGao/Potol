@@ -19,7 +19,8 @@ class PotholeDetector:
         
         # Control flags
         self.running = False
-        self.thread = None
+        self.detection_thread = None
+        self.capture_thread = None
         
         # Stats
         self.frame_count = 0
@@ -29,6 +30,7 @@ class PotholeDetector:
         
         # Video capture
         self.cap = None
+        self.frame_lock = threading.Lock()
         
         # Frame processing interval - 1 frame per second for Pi
         self.process_interval = 1.0  # seconds
@@ -43,6 +45,9 @@ class PotholeDetector:
         
     def initialize_camera(self):
         """Initialize the camera with lower resolution for Pi"""
+        if self.cap is not None:
+            self.cap.release()
+            
         self.cap = cv2.VideoCapture(self.camera_index)
         if not self.cap.isOpened():
             print(f"Camera {self.camera_index} not found")
@@ -55,27 +60,38 @@ class PotholeDetector:
         # Set buffer size to 1 to always get the latest frame
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         
-        # Set FPS to 1 to reduce capture rate
-        self.cap.set(cv2.CAP_PROP_FPS, 1)
-        
         # Get actual camera properties
-        self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 1
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 30
         self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         
         print(f"Camera initialized: {self.width}x{self.height} @ {self.fps}fps")
         
     def start(self):
-        """Start the detection in a separate thread"""
+        """Start the detection in separate threads"""
         if self.running:
             print("Detector is already running")
             return
             
+        try:
+            self.initialize_camera()
+        except Exception as e:
+            print(f"Failed to start: {e}")
+            return
+
         self.running = True
-        self.thread = threading.Thread(target=self._detection_loop)
-        self.thread.daemon = True
-        self.thread.start()
-        print("Pothole detection started (1 FPS mode for Pi)")
+        
+        # Start capture thread
+        self.capture_thread = threading.Thread(target=self._capture_loop)
+        self.capture_thread.daemon = True
+        self.capture_thread.start()
+        
+        # Start detection thread
+        self.detection_thread = threading.Thread(target=self._detection_loop)
+        self.detection_thread.daemon = True
+        self.detection_thread.start()
+        
+        print("Pothole detection started (Threaded capture + 1 FPS processing)")
         
     def stop(self):
         """Stop the detection"""
@@ -85,9 +101,11 @@ class PotholeDetector:
             
         self.running = False
         
-        # Wait for thread to finish
-        if self.thread:
-            self.thread.join(timeout=2)
+        # Wait for threads to finish
+        if self.capture_thread:
+            self.capture_thread.join(timeout=1)
+        if self.detection_thread:
+            self.detection_thread.join(timeout=1)
             
         # Clean up
         if self.cap:
@@ -96,38 +114,36 @@ class PotholeDetector:
             
         print("Pothole detection stopped")
         print(f"Summary: {self.frame_count} frames, {self.total_detections} detections")
+
+    def _capture_loop(self):
+        """Continuously capture frames to keep buffer empty"""
+        while self.running and self.cap and self.cap.isOpened():
+            ret, frame = self.cap.read()
+            if ret:
+                with self.frame_lock:
+                    self.current_frame = frame.copy()
+            else:
+                time.sleep(0.1)
         
     def _detection_loop(self):
-        """Optimized detection loop for Raspberry Pi - truly 1 FPS"""
-        try:
-            self.initialize_camera()
-        except Exception as e:
-            print(f"Camera initialization failed: {e}")
-            self.running = False
-            return
-        
+        """Detection loop running at 1 FPS"""
         while self.running:
             start_time = time.time()
             
-            # Clear buffer and get fresh frame
-            # This ensures we get the latest frame, not an old buffered one
-            ret = False
-            for _ in range(5):  # Try to clear buffer
-                ret, frame = self.cap.read()
-                if ret:
-                    break
-                    
-            if not ret:
-                print("Failed to read frame")
-                time.sleep(1)  # Wait before retry
-                continue
-                
-            # Store current frame for display
-            self.current_frame = frame.copy()
+            # Get latest frame safely
+            frame_to_process = None
+            with self.frame_lock:
+                if self.current_frame is not None:
+                    frame_to_process = self.current_frame.copy()
             
-            # Process the frame
-            self.frame_count += 1
-            self._process_frame(frame)
+            if frame_to_process is not None:
+                # Process the frame
+                self.frame_count += 1
+                self._process_frame(frame_to_process)
+            else:
+                print("Waiting for frames...")
+                time.sleep(0.1)
+                continue
             
             # Calculate how long to sleep to maintain 1 FPS
             elapsed = time.time() - start_time
@@ -154,9 +170,6 @@ class PotholeDetector:
         """Process a single frame for pothole detection"""
         try:
             start = time.time()
-            
-            # Optional: Resize frame before sending to API to reduce bandwidth
-            # resized = cv2.resize(frame, (416, 416))  # YOLO typical size
             
             # Run inference
             result = self.client.infer(frame, model_id=self.model_id)
@@ -214,7 +227,10 @@ class PotholeDetector:
         
     def get_current_frame(self):
         """Get the current frame (for GUI display)"""
-        return self.current_frame
+        with self.frame_lock:
+            if self.current_frame is not None:
+                return self.current_frame.copy()
+        return None
         
     def get_statistics(self):
         """Get current statistics"""
