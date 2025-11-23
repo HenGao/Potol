@@ -191,6 +191,9 @@ def generate_frames():
             # Yield frame in byte format
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+            
+            # Throttle to match detection rate (1 FPS) and prevent network lag
+            time.sleep(getattr(detector, 'process_interval', 1.0))
         else:
             # Send a placeholder image when no frame is available
             time.sleep(0.1)
