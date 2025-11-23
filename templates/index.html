@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pothole Detection System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 1200px;
+            width: 100%;
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .content {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 30px;
+            padding: 30px;
+        }
+        
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .video-section {
+            position: relative;
+        }
+        
+        .video-container {
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+            aspect-ratio: 4/3;
+        }
+        
+        #videoFeed {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .no-video {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            text-align: center;
+        }
+        
+        .controls-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .control-panel {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+        }
+        
+        .control-panel h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+        }
+        
+        .btn-start {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-start:hover {
+            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+        }
+        
+        .btn-stop {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-stop:hover {
+            background: #c82333;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .stats {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .stat-item:last-child {
+            border-bottom: none;
+        }
+        
+        .stat-label {
+            font-weight: 600;
+            color: #6c757d;
+        }
+        
+        .stat-value {
+            font-weight: 700;
+            color: #333;
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: 600;
+            margin-top: 20px;
+        }
+        
+        .status.running {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.stopped {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status.detecting {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        
+        .detection-log {
+            max-height: 200px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 10px;
+        }
+        
+        .detection-entry {
+            padding: 8px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 5px;
+            border-left: 3px solid #dc3545;
+        }
+        
+        .settings-group {
+            margin-top: 15px;
+        }
+        
+        .settings-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #6c757d;
+            font-weight: 600;
+        }
+        
+        .settings-group select,
+        .settings-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚗 Pothole Detection System</h1>
+            <p>Real-time road hazard detection using AI</p>
+        </div>
+        
+        <div class="content">
+            <div class="video-section">
+                <div class="video-container">
+                    <img id="videoFeed" style="display: none;">
+                    <div class="no-video" id="noVideo">
+                        <h2>📹</h2>
+                        <p>Camera feed will appear here</p>
+                        <p>Click START to begin detection</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="controls-section">
+                <div class="control-panel">
+                    <h3>🎮 Controls</h3>
+                    <div class="button-group">
+                        <button id="startBtn" class="btn btn-start" onclick="startDetection()">
+                            ▶ Start
+                        </button>
+                        <button id="stopBtn" class="btn btn-stop" onclick="stopDetection()" disabled>
+                            ⏹ Stop
+                        </button>
+                    </div>
+                    
+                    <div class="stats">
+                        <div class="stat-item">
+                            <span class="stat-label">Status:</span>
+                            <span class="stat-value" id="systemStatus">Stopped</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Frames Processed:</span>
+                            <span class="stat-value" id="framesProcessed">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Potholes Detected:</span>
+                            <span class="stat-value" id="totalDetections">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Current Frame:</span>
+                            <span class="stat-value" id="currentPotholes">0</span>
+                        </div>
+                    </div>
+                    
+                    <div class="status stopped" id="statusIndicator">
+                        System Stopped
+                    </div>
+                </div>
+                
+                <div class="control-panel">
+                    <h3>⚙️ Settings</h3>
+                    <div class="settings-group">
+                        <label for="cameraSelect">Camera Source:</label>
+                        <select id="cameraSelect">
+                            <option value="0">Default Camera (0)</option>
+                            <option value="1" selected>External Camera (1)</option>
+                            <option value="2">Camera 2</option>
+                        </select>
+                    </div>
+                    <div class="settings-group">
+                        <label for="intervalInput">Detection Interval (seconds):</label>
+                        <input type="number" id="intervalInput" value="1.0" min="0.5" max="5" step="0.5">
+                    </div>
+                </div>
+                
+                <div class="control-panel">
+                    <h3>📊 Detection Log</h3>
+                    <div class="detection-log" id="detectionLog">
+                        <p style="color: #6c757d; text-align: center;">No detections yet</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isRunning = false;
+        let statsInterval = null;
+        let detectionsInterval = null;
+        
+        function startDetection() {
+            fetch('/api/start', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success' || data.status === 'warning') {
+                        isRunning = true;
+                        updateUI();
+                        startVideoFeed();
+                        startStatsUpdate();
+                        startDetectionsUpdate();
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+        
+        function stopDetection() {
+            fetch('/api/stop', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success' || data.status === 'warning') {
+                        isRunning = false;
+                        updateUI();
+                        stopVideoFeed();
+                        stopStatsUpdate();
+                        stopDetectionsUpdate();
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+        
+        function updateUI() {
+            const startBtn = document.getElementById('startBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            const statusIndicator = document.getElementById('statusIndicator');
+            const systemStatus = document.getElementById('systemStatus');
+            
+            if (isRunning) {
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                statusIndicator.className = 'status running';
+                statusIndicator.textContent = '🟢 Detection Running';
+                systemStatus.textContent = 'Running';
+            } else {
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                statusIndicator.className = 'status stopped';
+                statusIndicator.textContent = '🔴 System Stopped';
+                systemStatus.textContent = 'Stopped';
+            }
+        }
+        
+        function startVideoFeed() {
+            const videoFeed = document.getElementById('videoFeed');
+            const noVideo = document.getElementById('noVideo');
+            
+            videoFeed.src = '/video_feed';
+            videoFeed.style.display = 'block';
+            noVideo.style.display = 'none';
+        }
+        
+        function stopVideoFeed() {
+            const videoFeed = document.getElementById('videoFeed');
+            const noVideo = document.getElementById('noVideo');
+            
+            videoFeed.src = '';
+            videoFeed.style.display = 'none';
+            noVideo.style.display = 'block';
+        }
+        
+        function startStatsUpdate() {
+            statsInterval = setInterval(updateStats, 1000);
+        }
+        
+        function stopStatsUpdate() {
+            if (statsInterval) {
+                clearInterval(statsInterval);
+                statsInterval = null;
+            }
+        }
+        
+        function updateStats() {
+            fetch('/api/stats')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('framesProcessed').textContent = data.frames_processed || 0;
+                    document.getElementById('totalDetections').textContent = data.total_detections || 0;
+                    document.getElementById('currentPotholes').textContent = 
+                        data.latest_predictions ? data.latest_predictions.length : 0;
+                    
+                    // Update status indicator if detecting potholes
+                    if (data.latest_predictions && data.latest_predictions.length > 0) {
+                        const statusIndicator = document.getElementById('statusIndicator');
+                        statusIndicator.className = 'status detecting';
+                        statusIndicator.textContent = `⚠️ ${data.latest_predictions.length} Pothole(s) Detected!`;
+                    }
+                })
+                .catch(error => console.error('Error updating stats:', error));
+        }
+        
+        function startDetectionsUpdate() {
+            detectionsInterval = setInterval(updateDetections, 2000);
+        }
+        
+        function stopDetectionsUpdate() {
+            if (detectionsInterval) {
+                clearInterval(detectionsInterval);
+                detectionsInterval = null;
+            }
+        }
+        
+        function updateDetections() {
+            fetch('/api/detections')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.detections && data.detections.length > 0) {
+                        const log = document.getElementById('detectionLog');
+                        
+                        // Add new detections to log
+                        data.detections.forEach(detection => {
+                            const entry = document.createElement('div');
+                            entry.className = 'detection-entry';
+                            const time = new Date(detection.timestamp).toLocaleTimeString();
+                            entry.innerHTML = `
+                                <strong>🕐 ${time}</strong><br>
+                                Frame #${detection.frame_number}: 
+                                <strong>${detection.detections} pothole(s)</strong>
+                            `;
+                            log.insertBefore(entry, log.firstChild);
+                        });
+                        
+                        // Keep only last 10 entries
+                        while (log.children.length > 10) {
+                            log.removeChild(log.lastChild);
+                        }
+                    }
+                })
+                .catch(error => console.error('Error updating detections:', error));
+        }
+        
+        // Settings handlers
+        document.getElementById('cameraSelect').addEventListener('change', function(e) {
+            const camera = e.target.value;
+            fetch('/api/settings', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({camera: parseInt(camera)})
+            });
+        });
+        
+        document.getElementById('intervalInput').addEventListener('change', function(e) {
+            const interval = e.target.value;
+            fetch('/api/settings', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({interval: parseFloat(interval)})
+            });
+        });
+        
+        // Check initial status
+        fetch('/api/stats')
+            .then(response => response.json())
+            .then(data => {
+                if (data.is_running) {
+                    isRunning = true;
+                    updateUI();
+                    startVideoFeed();
+                    startStatsUpdate();
+                    startDetectionsUpdate();
+                }
+            });
+    </script>
+</body>
+</html>
