@@ -277,7 +277,35 @@
             margin-bottom: 15px;
             color: #1565c0;
         }
+
+        .map-section {
+            grid-column: 1 / -1;
+            height: 400px;
+            background: #eee;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 3px solid #6c757d;
+            position: relative;
+            z-index: 1;
+        }
+
+        .leaflet-div-icon {
+            background: transparent !important;
+            border: none !important;
+        }
+
+        .user-marker,
+        .pothole-marker {
+            font-size: 24px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
     </style>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 
 <body>
@@ -354,6 +382,8 @@
                     </div>
                 </div>
             </div>
+
+            <div class="map-section" id="map"></div>
         </div>
     </div>
 
@@ -364,6 +394,13 @@
         let lastSoundTime = 0;
         const SOUND_COOLDOWN = 3000; // 3 seconds cooldown
 
+        // Map variables
+        let map = null;
+        let userMarker = null;
+        let currentLocation = null;
+        let pathLine = null;
+        let pathCoordinates = [];
+
         const FUNNY_SOUNDS = [
             '/static/roblox_oof.mp3',
             '/static/man_screaming.mp3',
@@ -373,6 +410,7 @@
         // Auto-initialize on page load
         window.onload = function () {
             console.log('Page loaded, initializing live feed...');
+            initMap();
             setTimeout(() => {
                 startVideoFeed();
                 startStatsUpdate();
@@ -380,6 +418,57 @@
                 updateUI();
             }, 1000);  // Give the backend a second to initialize
         };
+
+        function initMap() {
+            // Initialize map centered on a default location (will be updated)
+            map = L.map('map').setView([0, 0], 2);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            // Track user location
+            if ("geolocation" in navigator) {
+                navigator.geolocation.watchPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        currentLocation = [lat, lng];
+
+                        // Update user marker
+                        if (userMarker) {
+                            userMarker.setLatLng(currentLocation);
+                        } else {
+                            userMarker = L.marker(currentLocation, {
+                                icon: L.divIcon({
+                                    className: 'user-marker',
+                                    html: '🚗',
+                                    iconSize: [30, 30],
+                                    iconAnchor: [15, 15]
+                                })
+                            }).addTo(map);
+                            map.setView(currentLocation, 16);
+                        }
+
+                        // Draw path
+                        pathCoordinates.push(currentLocation);
+                        if (pathLine) {
+                            pathLine.setLatLngs(pathCoordinates);
+                        } else {
+                            pathLine = L.polyline(pathCoordinates, { color: 'blue' }).addTo(map);
+                        }
+                    },
+                    (error) => {
+                        console.error("Error getting location:", error);
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        maximumAge: 0,
+                        timeout: 5000
+                    }
+                );
+            }
+        }
 
         function testSound() {
             playRandomSound();
@@ -552,6 +641,28 @@
                                 <strong>${detection.detections} pothole(s)</strong>
                             `;
                             log.insertBefore(entry, log.firstChild);
+
+                            // Add marker to map if we have location
+                            if (currentLocation && map) {
+                                const marker = L.marker(currentLocation, {
+                                    icon: L.divIcon({
+                                        className: 'pothole-marker',
+                                        html: '⚠️',
+                                        iconSize: [30, 30],
+                                        iconAnchor: [15, 15]
+                                    })
+                                }).addTo(map);
+
+                                let popupContent = `<strong>Pothole Detected!</strong><br>${time}`;
+                                if (detection.image_url) {
+                                    popupContent += `<br><img src="${detection.image_url}" style="width: 200px; margin-top: 5px; border-radius: 5px;">`;
+                                }
+
+                                marker.bindPopup(popupContent);
+
+                                // Optional: Auto-open popup
+                                // marker.openPopup();
+                            }
                         });
 
                         // Keep only last 10 entries

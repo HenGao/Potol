@@ -36,6 +36,11 @@ class PotholeDetector:
         # Queue for thread-safe communication
         self.detection_queue = queue.Queue()
         
+        # Ensure detections directory exists
+        import os
+        if not os.path.exists('static/detections'):
+            os.makedirs('static/detections')
+        
     def initialize_camera(self):
         """Initialize the camera with lower resolution for Pi"""
         self.cap = cv2.VideoCapture(self.camera_index)
@@ -170,12 +175,34 @@ class PotholeDetector:
                 detection_count = len(predictions)
                 self.total_detections += detection_count
                 
+                # Save image with detections
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+                filename = f"pothole_{timestamp}.jpg"
+                filepath = f"static/detections/{filename}"
+                
+                # Draw boxes on a copy for saving
+                save_frame = frame.copy()
+                for pred in predictions:
+                    x = pred.get('x', 0)
+                    y = pred.get('y', 0)
+                    w = pred.get('width', 0)
+                    h = pred.get('height', 0)
+                    if x and y:
+                        x1 = int(x - w/2)
+                        y1 = int(y - h/2)
+                        x2 = int(x + w/2)
+                        y2 = int(y + h/2)
+                        cv2.rectangle(save_frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                
+                cv2.imwrite(filepath, save_frame)
+                
                 # Add to queue for GUI/app consumption
                 self.detection_queue.put({
                     'timestamp': datetime.now().isoformat(),
                     'frame_number': self.frame_count,
                     'detections': detection_count,
-                    'predictions': predictions
+                    'predictions': predictions,
+                    'image_url': f"/static/detections/{filename}"
                 })
                 
                 print(f"Frame {self.frame_count}: {detection_count} pothole(s) detected (took {time.time()-start:.2f}s)")
