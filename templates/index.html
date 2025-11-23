@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,7 +11,7 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -20,33 +21,33 @@
             align-items: center;
             padding: 20px;
         }
-        
+
         .container {
             background: white;
             border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             max-width: 1200px;
             width: 100%;
             overflow: hidden;
         }
-        
+
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 30px;
             text-align: center;
         }
-        
+
         .header h1 {
             font-size: 2.5em;
             margin-bottom: 10px;
         }
-        
+
         .header p {
             font-size: 1.1em;
             opacity: 0.9;
         }
-        
+
         .live-indicator {
             display: inline-block;
             padding: 5px 15px;
@@ -55,29 +56,36 @@
             margin-top: 10px;
             animation: pulse 2s infinite;
         }
-        
+
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.6; }
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.6;
+            }
         }
-        
+
         .content {
             display: grid;
             grid-template-columns: 2fr 1fr;
             gap: 30px;
             padding: 30px;
         }
-        
+
         @media (max-width: 768px) {
             .content {
                 grid-template-columns: 1fr;
             }
         }
-        
+
         .video-section {
             position: relative;
         }
-        
+
         .video-container {
             background: #000;
             border-radius: 10px;
@@ -86,13 +94,13 @@
             aspect-ratio: 4/3;
             border: 3px solid #28a745;
         }
-        
+
         #videoFeed {
             width: 100%;
             height: 100%;
             object-fit: cover;
         }
-        
+
         .loading-overlay {
             position: absolute;
             top: 50%;
@@ -105,7 +113,7 @@
             padding: 20px;
             border-radius: 10px;
         }
-        
+
         .spinner {
             border: 3px solid rgba(255, 255, 255, 0.3);
             border-radius: 50%;
@@ -115,36 +123,41 @@
             animation: spin 1s linear infinite;
             margin: 0 auto 10px;
         }
-        
+
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
-        
+
         .controls-section {
             display: flex;
             flex-direction: column;
             gap: 20px;
         }
-        
+
         .control-panel {
             background: #f8f9fa;
             border-radius: 10px;
             padding: 20px;
         }
-        
+
         .control-panel h3 {
             margin-bottom: 15px;
             color: #333;
         }
-        
+
         .button-group {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 10px;
             margin-bottom: 20px;
         }
-        
+
         .btn {
             padding: 12px 24px;
             border: none;
@@ -155,63 +168,63 @@
             transition: all 0.3s ease;
             text-transform: uppercase;
         }
-        
+
         .btn-restart {
             background: #ffc107;
             color: #333;
         }
-        
+
         .btn-restart:hover {
             background: #e0a800;
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(255, 193, 7, 0.3);
         }
-        
+
         .btn-stop {
             background: #dc3545;
             color: white;
         }
-        
+
         .btn-stop:hover {
             background: #c82333;
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
         }
-        
+
         .btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
             transform: none !important;
         }
-        
+
         .stats {
             background: white;
             border-radius: 10px;
             padding: 15px;
             border: 2px solid #e9ecef;
         }
-        
+
         .stat-item {
             display: flex;
             justify-content: space-between;
             padding: 10px 0;
             border-bottom: 1px solid #e9ecef;
         }
-        
+
         .stat-item:last-child {
             border-bottom: none;
         }
-        
+
         .stat-label {
             font-weight: 600;
             color: #6c757d;
         }
-        
+
         .stat-value {
             font-weight: 700;
             color: #333;
         }
-        
+
         .status {
             padding: 15px;
             border-radius: 10px;
@@ -219,26 +232,26 @@
             font-weight: 600;
             margin-top: 20px;
         }
-        
+
         .status.running {
             background: #d4edda;
             color: #155724;
             border: 1px solid #c3e6cb;
         }
-        
+
         .status.stopped {
             background: #f8d7da;
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
-        
+
         .status.detecting {
             background: #fff3cd;
             color: #856404;
             border: 1px solid #ffeaa7;
             animation: pulse 1s infinite;
         }
-        
+
         .detection-log {
             max-height: 200px;
             overflow-y: auto;
@@ -247,7 +260,7 @@
             padding: 10px;
             margin-top: 10px;
         }
-        
+
         .detection-entry {
             padding: 8px;
             margin: 5px 0;
@@ -255,7 +268,7 @@
             border-radius: 5px;
             border-left: 3px solid #dc3545;
         }
-        
+
         .camera-info {
             background: #e3f2fd;
             border: 1px solid #90caf9;
@@ -266,6 +279,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
@@ -275,7 +289,7 @@
                 🔴 LIVE MONITORING
             </div>
         </div>
-        
+
         <div class="content">
             <div class="video-section">
                 <div class="video-container">
@@ -286,7 +300,7 @@
                     <img id="videoFeed">
                 </div>
             </div>
-            
+
             <div class="controls-section">
                 <div class="control-panel">
                     <h3>📹 Camera Status</h3>
@@ -294,7 +308,7 @@
                         <strong>Camera:</strong> <span id="cameraIndex">Detecting...</span><br>
                         <strong>Resolution:</strong> <span id="cameraResolution">...</span>
                     </div>
-                    
+
                     <h3>🎮 Controls</h3>
                     <div class="button-group">
                         <button id="restartBtn" class="btn btn-restart" onclick="restartDetection()">
@@ -303,8 +317,12 @@
                         <button id="stopBtn" class="btn btn-stop" onclick="stopDetection()">
                             ⏹ Stop
                         </button>
+                        <button id="testSoundBtn" class="btn" style="background: #17a2b8; color: white;"
+                            onclick="testSound()">
+                            🔊 Test Sound
+                        </button>
                     </div>
-                    
+
                     <div class="stats">
                         <div class="stat-item">
                             <span class="stat-label">Status:</span>
@@ -323,12 +341,12 @@
                             <span class="stat-value" id="currentPotholes">0</span>
                         </div>
                     </div>
-                    
+
                     <div class="status running" id="statusIndicator">
                         🟢 Auto-Detection Active
                     </div>
                 </div>
-                
+
                 <div class="control-panel">
                     <h3>📊 Detection Log</h3>
                     <div class="detection-log" id="detectionLog">
@@ -343,9 +361,17 @@
         let isRunning = true;  // Assume it's running since we auto-start
         let statsInterval = null;
         let detectionsInterval = null;
-        
+        let lastSoundTime = 0;
+        const SOUND_COOLDOWN = 3000; // 3 seconds cooldown
+
+        const FUNNY_SOUNDS = [
+            '/static/roblox_oof.mp3',
+            '/static/man_screaming.mp3',
+            '/static/wrong_buzzer.mp3'
+        ];
+
         // Auto-initialize on page load
-        window.onload = function() {
+        window.onload = function () {
             console.log('Page loaded, initializing live feed...');
             setTimeout(() => {
                 startVideoFeed();
@@ -354,7 +380,27 @@
                 updateUI();
             }, 1000);  // Give the backend a second to initialize
         };
-        
+
+        function testSound() {
+            playRandomSound();
+        }
+
+        function playRandomSound() {
+            const audio = document.getElementById('potholeSound');
+            // Pick a random sound
+            const randomSound = FUNNY_SOUNDS[Math.floor(Math.random() * FUNNY_SOUNDS.length)];
+            audio.src = randomSound;
+
+            audio.currentTime = 0;
+            audio.play().catch(e => {
+                console.log('Audio play failed:', e);
+                if (e.name === 'NotAllowedError') {
+                    const statusIndicator = document.getElementById('statusIndicator');
+                    statusIndicator.textContent += ' (Click "Test Sound" to enable audio)';
+                }
+            });
+        }
+
         function restartDetection() {
             fetch('/api/restart', { method: 'POST' })
                 .then(response => response.json())
@@ -367,7 +413,7 @@
                 })
                 .catch(error => console.error('Error:', error));
         }
-        
+
         function stopDetection() {
             fetch('/api/stop', { method: 'POST' })
                 .then(response => response.json())
@@ -382,13 +428,13 @@
                 })
                 .catch(error => console.error('Error:', error));
         }
-        
+
         function updateUI() {
             const restartBtn = document.getElementById('restartBtn');
             const stopBtn = document.getElementById('stopBtn');
             const statusIndicator = document.getElementById('statusIndicator');
             const systemStatus = document.getElementById('systemStatus');
-            
+
             if (isRunning) {
                 restartBtn.disabled = false;
                 stopBtn.disabled = false;
@@ -403,64 +449,71 @@
                 systemStatus.textContent = 'Stopped';
             }
         }
-        
+
         function startVideoFeed() {
             const videoFeed = document.getElementById('videoFeed');
             const loadingOverlay = document.getElementById('loadingOverlay');
-            
+
             videoFeed.src = '/video_feed';
-            videoFeed.onload = function() {
+            videoFeed.onload = function () {
                 loadingOverlay.style.display = 'none';
             };
         }
-        
+
         function stopVideoFeed() {
             const videoFeed = document.getElementById('videoFeed');
             const loadingOverlay = document.getElementById('loadingOverlay');
-            
+
             videoFeed.src = '';
             loadingOverlay.style.display = 'block';
             loadingOverlay.innerHTML = '<p>Camera stopped</p>';
         }
-        
+
         function startStatsUpdate() {
             updateStats();  // Initial update
             statsInterval = setInterval(updateStats, 1000);
         }
-        
+
         function stopStatsUpdate() {
             if (statsInterval) {
                 clearInterval(statsInterval);
                 statsInterval = null;
             }
         }
-        
+
         function updateStats() {
             fetch('/api/stats')
                 .then(response => response.json())
                 .then(data => {
                     document.getElementById('framesProcessed').textContent = data.frames_processed || 0;
                     document.getElementById('totalDetections').textContent = data.total_detections || 0;
-                    document.getElementById('currentPotholes').textContent = 
+                    document.getElementById('currentPotholes').textContent =
                         data.latest_predictions ? data.latest_predictions.length : 0;
-                    
+
                     // Update camera info
                     if (data.camera_index !== undefined) {
                         document.getElementById('cameraIndex').textContent = `Camera ${data.camera_index}`;
                         document.getElementById('cameraResolution').textContent = data.camera_resolution || 'Unknown';
                     }
-                    
+
                     // Update status indicator if detecting potholes
                     if (data.latest_predictions && data.latest_predictions.length > 0) {
                         const statusIndicator = document.getElementById('statusIndicator');
                         statusIndicator.className = 'status detecting';
                         statusIndicator.textContent = `⚠️ ${data.latest_predictions.length} Pothole(s) Detected!`;
+
+                        // Play funny sound with cooldown
+                        const now = Date.now();
+                        if (now - lastSoundTime > SOUND_COOLDOWN) {
+                            playRandomSound();
+                            lastSoundTime = now;
+                        }
                     } else if (isRunning) {
                         const statusIndicator = document.getElementById('statusIndicator');
                         statusIndicator.className = 'status running';
                         statusIndicator.textContent = '🟢 Monitoring Road';
                     }
-                    
+
                     // Check if system is actually running
                     if (data.is_running !== undefined) {
                         isRunning = data.is_running;
@@ -469,25 +522,25 @@
                 })
                 .catch(error => console.error('Error updating stats:', error));
         }
-        
+
         function startDetectionsUpdate() {
             detectionsInterval = setInterval(updateDetections, 2000);
         }
-        
+
         function stopDetectionsUpdate() {
             if (detectionsInterval) {
                 clearInterval(detectionsInterval);
                 detectionsInterval = null;
             }
         }
-        
+
         function updateDetections() {
             fetch('/api/detections')
                 .then(response => response.json())
                 .then(data => {
                     if (data.detections && data.detections.length > 0) {
                         const log = document.getElementById('detectionLog');
-                        
+
                         // Add new detections to log
                         data.detections.forEach(detection => {
                             const entry = document.createElement('div');
@@ -500,7 +553,7 @@
                             `;
                             log.insertBefore(entry, log.firstChild);
                         });
-                        
+
                         // Keep only last 10 entries
                         while (log.children.length > 10) {
                             log.removeChild(log.lastChild);
@@ -510,5 +563,9 @@
                 .catch(error => console.error('Error updating detections:', error));
         }
     </script>
+
+    <!-- Audio for pothole detection -->
+    <audio id="potholeSound" src="/static/funny_laugh.mp3" preload="auto"></audio>
 </body>
+
 </html>
