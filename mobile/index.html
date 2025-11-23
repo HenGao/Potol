@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pothole Patrol</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Leaflet CSS for Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRS9BMY=" crossorigin="" />
+
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <style>
+        /* Custom Scrollbar for sleek look */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+
+        /* Map Container Height */
+        #map {
+            height: calc(100vh - 140px);
+            width: 100%;
+            z-index: 0;
+        }
+
+        /* Animations */
+        @keyframes pulse-ring {
+            0% {
+                transform: scale(0.8);
+                opacity: 0.5;
+            }
+
+            100% {
+                transform: scale(2);
+                opacity: 0;
+            }
+        }
+
+        .animate-pulse-ring {
+            animation: pulse-ring 2s infinite;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 text-slate-800 font-sans h-screen overflow-hidden flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-white shadow-sm z-20 px-4 py-3 flex justify-between items-center shrink-0">
+        <div class="flex items-center gap-2">
+            <div class="bg-blue-600 text-white p-2 rounded-lg">
+                <i class="fa-solid fa-car-burst"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg leading-tight">Pothole Patrol</h1>
+                <p class="text-xs text-slate-500" id="connection-status">Disconnected</p>
+            </div>
+        </div>
+        <button id="btn-connect"
+            class="bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium py-2 px-4 rounded-full transition-all shadow-md active:scale-95 flex items-center gap-2">
+            <i class="fa-brands fa-bluetooth-b"></i> <span>Connect</span>
+        </button>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 overflow-hidden relative">
+
+        <!-- Dashboard View (List) -->
+        <div id="view-dashboard" class="h-full overflow-y-auto p-4 pb-24 space-y-4 fade-in">
+            <!-- Empty State -->
+            <div id="empty-state" class="flex flex-col items-center justify-center h-64 text-slate-400 mt-10">
+                <i class="fa-solid fa-satellite-dish text-4xl mb-4 opacity-50"></i>
+                <p class="text-center">Connect to Dashcam to<br>sync detected hazards.</p>
+            </div>
+
+            <!-- Stats Summary (Hidden initially) -->
+            <div id="stats-container" class="hidden grid grid-cols-3 gap-3 mb-4">
+                <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-100 text-center">
+                    <div class="text-2xl font-bold text-slate-800" id="stat-total">0</div>
+                    <div class="text-[10px] uppercase tracking-wide text-slate-500 font-bold">Total</div>
+                </div>
+                <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-100 text-center">
+                    <div class="text-2xl font-bold text-red-500" id="stat-severe">0</div>
+                    <div class="text-[10px] uppercase tracking-wide text-slate-500 font-bold">Severe</div>
+                </div>
+                <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-100 text-center">
+                    <div class="text-2xl font-bold text-blue-500" id="stat-synced">0</div>
+                    <div class="text-[10px] uppercase tracking-wide text-slate-500 font-bold">New</div>
+                </div>
+            </div>
+
+            <!-- Incidents List -->
+            <div id="incidents-list" class="space-y-3">
+                <!-- Items injected here via JS -->
+            </div>
+        </div>
+
+        <!-- Map View -->
+        <div id="view-map" class="h-full w-full absolute top-0 left-0 hidden fade-in">
+            <div id="map"></div>
+            <!-- Map Overlay Controls -->
+            <div class="absolute top-4 right-4 z-[400] flex flex-col gap-2">
+                <button onclick="centerMap()"
+                    class="bg-white p-3 rounded-full shadow-lg text-slate-600 hover:text-blue-600 transition-colors">
+                    <i class="fa-solid fa-location-crosshairs"></i>
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav class="bg-white border-t border-slate-200 px-6 py-2 pb-5 shrink-0 z-20">
+        <div class="flex justify-around items-center">
+            <button onclick="switchView('dashboard')" id="nav-dashboard"
+                class="flex flex-col items-center p-2 text-blue-600 transition-colors">
+                <i class="fa-solid fa-list-ul text-xl mb-1"></i>
+                <span class="text-[10px] font-bold">List</span>
+            </button>
+
+            <div class="relative -top-5">
+                <button id="btn-scan" onclick="simulateScan()"
+                    class="bg-blue-600 hover:bg-blue-500 text-white w-14 h-14 rounded-full shadow-lg shadow-blue-600/30 flex items-center justify-center text-xl transition-transform active:scale-90 disabled:opacity-50 disabled:grayscale"
+                    disabled>
+                    <i class="fa-solid fa-radar"></i>
+                </button>
+            </div>
+
+            <button onclick="switchView('map')" id="nav-map"
+                class="flex flex-col items-center p-2 text-slate-400 hover:text-slate-600 transition-colors">
+                <i class="fa-solid fa-map text-xl mb-1"></i>
+                <span class="text-[10px] font-bold">Map</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Bluetooth Connecting Modal -->
+    <div id="bt-modal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-white rounded-2xl p-6 w-10/12 max-w-sm shadow-2xl text-center">
+            <div class="relative w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                <div class="absolute inset-0 bg-blue-100 rounded-full animate-pulse-ring"></div>
+                <div
+                    class="bg-blue-600 text-white rounded-full w-12 h-12 flex items-center justify-center relative z-10">
+                    <i class="fa-brands fa-bluetooth-b text-xl"></i>
+                </div>
+            </div>
+            <h3 class="font-bold text-lg mb-1">Searching for Dashcam...</h3>
+            <p class="text-sm text-slate-500 mb-6">Make sure your device is powered on and within range.</p>
+            <div class="w-full bg-slate-100 rounded-full h-1.5 mb-2 overflow-hidden">
+                <div id="bt-progress" class="bg-blue-600 h-full w-0 transition-all duration-[3000ms] ease-out"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast"
+        class="fixed top-20 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 py-2 rounded-full shadow-xl text-sm font-medium opacity-0 transition-opacity z-50 pointer-events-none flex items-center gap-2">
+        <i class="fa-solid fa-check-circle text-green-400"></i>
+        <span id="toast-msg">Action Successful</span>
+    </div>
+
+    <script>
+        // --- Configuration & State ---
+        const state = {
+            isConnected: false,
+            potholes: [],
+            currentView: 'dashboard',
+            userLocation: { lat: 42.3736, lng: -71.1097 } // Default: Cambridge, MA
+        };
+
+        // --- Mock Data Generator ---
+        // Simulates data coming from the dashcam via Bluetooth Low Energy (BLE)
+        const generateMockPothole = (id) => {
+            // Generate random offset from user location
+            const latOffset = (Math.random() - 0.5) * 0.02;
+            const lngOffset = (Math.random() - 0.5) * 0.02;
+
+            const severities = ['Low', 'Medium', 'High', 'Critical'];
+            const severity = severities[Math.floor(Math.random() * severities.length)];
+
+            return {
+                id: id,
+                lat: state.userLocation.lat + latOffset,
+                lng: state.userLocation.lng + lngOffset,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                date: new Date().toLocaleDateString(),
+                severity: severity,
+                // Placeholder images based on severity
+                image: `https://placehold.co/150x150/334155/FFFFFF?text=Pothole+${id}`
+            };
+        };
+
+        // --- UI Logic ---
+
+        const els = {
+            btnConnect: document.getElementById('btn-connect'),
+            btnScan: document.getElementById('btn-scan'),
+            statusText: document.getElementById('connection-status'),
+            modal: document.getElementById('bt-modal'),
+            btProgress: document.getElementById('bt-progress'),
+            listContainer: document.getElementById('incidents-list'),
+            emptyState: document.getElementById('empty-state'),
+            statsContainer: document.getElementById('stats-container'),
+            statTotal: document.getElementById('stat-total'),
+            statSevere: document.getElementById('stat-severe'),
+            statSynced: document.getElementById('stat-synced'),
+            navDashboard: document.getElementById('nav-dashboard'),
+            navMap: document.getElementById('nav-map'),
+            viewDashboard: document.getElementById('view-dashboard'),
+            viewMap: document.getElementById('view-map'),
+            toast: document.getElementById('toast'),
+            toastMsg: document.getElementById('toast-msg')
+        };
+
+        // Initialize Map
+        let map;
+        let markers = [];
+
+        function initMap() {
+            if (map) return; // Already initialized
+
+            map = L.map('map', {
+                zoomControl: false, // Cleaner mobile look
+                attributionControl: false
+            }).setView([state.userLocation.lat, state.userLocation.lng], 14);
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                maxZoom: 19
+            }).addTo(map);
+
+            // Add user location marker
+            const userIcon = L.divIcon({
+                className: 'custom-div-icon',
+                html: "<div style='background-color:#2563eb; width:12px; height:12px; border-radius:50%; border: 2px solid white; box-shadow: 0 0 0 4px rgba(37,99,235,0.2);'></div>",
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+            L.marker([state.userLocation.lat, state.userLocation.lng], { icon: userIcon }).addTo(map);
+        }
+
+        // --- Bluetooth Logic (Simulated) ---
+
+        els.btnConnect.addEventListener('click', async () => {
+            if (state.isConnected) {
+                // Disconnect logic
+                state.isConnected = false;
+                updateConnectionUI();
+                showToast("Dashcam Disconnected");
+                return;
+            }
+
+            // Web Bluetooth API Request (Boilerplate for real implementation)
+            /* try {
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: ['battery_service'] }] // Replace with Dashcam UUID
+                });
+                await device.gatt.connect();
+                // ... handle characteristics
+            } catch (e) { ... }
+            */
+
+            // Simulation Flow
+            els.modal.classList.remove('hidden');
+
+            // Animate progress bar
+            setTimeout(() => { els.btProgress.style.width = '100%'; }, 100);
+
+            // Fake delay for connection
+            setTimeout(() => {
+                els.modal.classList.add('hidden');
+                els.btProgress.style.width = '0'; // Reset
+                state.isConnected = true;
+                updateConnectionUI();
+                showToast("Dashcam Connected");
+
+                // Auto-trigger a scan upon first connection
+                setTimeout(simulateScan, 500);
+            }, 3000);
+        });
+
+        function updateConnectionUI() {
+            if (state.isConnected) {
+                els.statusText.textContent = "Connected • Battery 84%";
+                els.statusText.className = "text-xs text-green-600 font-medium";
+                els.btnConnect.innerHTML = `<i class="fa-solid fa-link-slash"></i>`;
+                els.btnConnect.classList.replace('bg-slate-900', 'bg-red-500');
+                els.btnConnect.classList.replace('hover:bg-slate-800', 'hover:bg-red-600');
+                els.btnScan.disabled = false;
+            } else {
+                els.statusText.textContent = "Disconnected";
+                els.statusText.className = "text-xs text-slate-500";
+                els.btnConnect.innerHTML = `<i class="fa-brands fa-bluetooth-b"></i> <span>Connect</span>`;
+                els.btnConnect.classList.replace('bg-red-500', 'bg-slate-900');
+                els.btnConnect.classList.replace('hover:bg-red-600', 'hover:bg-slate-800');
+                els.btnScan.disabled = true;
+            }
+        }
+
+        // --- Scan & Data Sync Logic ---
+
+        function simulateScan() {
+            if (!state.isConnected) return;
+
+            // Visual feedback on button
+            const icon = els.btnScan.querySelector('i');
+            icon.classList.add('fa-spin');
+
+            showToast("Syncing data from Dashcam...");
+
+            setTimeout(() => {
+                icon.classList.remove('fa-spin');
+
+                // Generate 2-4 new potholes
+                const count = Math.floor(Math.random() * 3) + 2;
+                const newPotholes = [];
+                for (let i = 0; i < count; i++) {
+                    newPotholes.push(generateMockPothole(Date.now() + i));
+                }
+
+                state.potholes = [...newPotholes, ...state.potholes];
+                renderPotholes();
+                updateStats(newPotholes.length);
+                showToast(`Synced ${count} new hazards`);
+            }, 1500);
+        }
+
+        function getSeverityColor(sev) {
+            switch (sev) {
+                case 'Low': return 'bg-yellow-100 text-yellow-700';
+                case 'Medium': return 'bg-orange-100 text-orange-700';
+                case 'High': return 'bg-red-100 text-red-700';
+                case 'Critical': return 'bg-purple-100 text-purple-700';
+                default: return 'bg-slate-100 text-slate-700';
+            }
+        }
+
+        function renderPotholes() {
+            if (state.potholes.length > 0) {
+                els.emptyState.classList.add('hidden');
+                els.statsContainer.classList.remove('hidden');
+            }
+
+            els.listContainer.innerHTML = '';
+
+            state.potholes.forEach(p => {
+                const card = document.createElement('div');
+                card.className = "bg-white p-3 rounded-xl shadow-sm border border-slate-100 flex gap-4 animate-[fadeIn_0.3s_ease-out]";
+                card.innerHTML = `
+                    <div class="w-20 h-20 bg-slate-200 rounded-lg overflow-hidden shrink-0 relative">
+                        <img src="${p.image}" class="w-full h-full object-cover" alt="Pothole">
+                        <div class="absolute bottom-0 left-0 w-full bg-black/50 text-white text-[10px] text-center py-0.5">
+                            AI Confidence 92%
+                        </div>
+                    </div>
+                    <div class="flex-1 flex flex-col justify-between">
+                        <div class="flex justify-between items-start">
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${getSeverityColor(p.severity)}">
+                                ${p.severity} Severity
+                            </span>
+                            <span class="text-xs text-slate-400 font-mono">${p.timestamp}</span>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-slate-800 text-sm">Detected Hazard #${p.id.toString().slice(-4)}</h4>
+                            <p class="text-xs text-slate-500 truncate">Near ${(p.lat).toFixed(4)}, ${(p.lng).toFixed(4)}</p>
+                        </div>
+                        <button onclick="focusOnMap(${p.id})" class="text-blue-600 text-xs font-bold self-start mt-1 hover:underline flex items-center gap-1">
+                            Show on Map <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                    </div>
+                `;
+                els.listContainer.appendChild(card);
+            });
+
+            updateMapMarkers();
+        }
+
+        function updateStats(newCount) {
+            els.statTotal.textContent = state.potholes.length;
+            const severeCount = state.potholes.filter(p => p.severity === 'High' || p.severity === 'Critical').length;
+            els.statSevere.textContent = severeCount;
+            els.statSynced.textContent = newCount > 0 ? `+${newCount}` : els.statSynced.textContent;
+        }
+
+        // --- Map Logic ---
+
+        function updateMapMarkers() {
+            if (!map) initMap();
+
+            // Clear existing markers
+            markers.forEach(m => map.removeLayer(m));
+            markers = [];
+
+            state.potholes.forEach(p => {
+                let color = '#ef4444'; // Red default
+                if (p.severity === 'Low') color = '#eab308';
+
+                const markerHtml = `<div style="background-color:${color}; width:16px; height:16px; border-radius:50%; border:2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`;
+
+                const icon = L.divIcon({
+                    className: 'custom-pin',
+                    html: markerHtml,
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10],
+                    popupAnchor: [0, -10]
+                });
+
+                const m = L.marker([p.lat, p.lng], { icon: icon })
+                    .bindPopup(`
+                        <div class="text-center">
+                            <img src="${p.image}" class="w-full rounded mb-2 h-20 object-cover">
+                            <strong class="block text-sm">Hazard #${p.id.toString().slice(-4)}</strong>
+                            <span class="text-xs text-slate-500">${p.severity} Severity</span>
+                        </div>
+                    `)
+                    .addTo(map);
+
+                markers.push(m);
+            });
+        }
+
+        window.focusOnMap = (id) => {
+            switchView('map');
+            const target = state.potholes.find(p => p.id === id);
+            if (target && map) {
+                // Wait for view transition
+                setTimeout(() => {
+                    map.invalidateSize();
+                    map.flyTo([target.lat, target.lng], 18, {
+                        animate: true,
+                        duration: 1.5
+                    });
+                    // Find marker and open popup
+                    // (Simplified logic: in real app, link marker ID to data ID)
+                }, 100);
+            }
+        };
+
+        window.centerMap = () => {
+            if (map) map.flyTo([state.userLocation.lat, state.userLocation.lng], 14);
+        }
+
+        // --- Navigation ---
+
+        window.switchView = (viewName) => {
+            state.currentView = viewName;
+
+            if (viewName === 'dashboard') {
+                els.viewDashboard.classList.remove('hidden');
+                els.viewMap.classList.add('hidden');
+                els.navDashboard.classList.add('text-blue-600');
+                els.navDashboard.classList.remove('text-slate-400');
+                els.navMap.classList.remove('text-blue-600');
+                els.navMap.classList.add('text-slate-400');
+            } else {
+                els.viewDashboard.classList.add('hidden');
+                els.viewMap.classList.remove('hidden');
+                els.navDashboard.classList.remove('text-blue-600');
+                els.navDashboard.classList.add('text-slate-400');
+                els.navMap.classList.add('text-blue-600');
+                els.navMap.classList.remove('text-slate-400');
+
+                // Fix Leaflet sizing issues when tab is hidden
+                setTimeout(() => {
+                    if (!map) initMap();
+                    map.invalidateSize();
+                }, 100);
+            }
+        };
+
+        function showToast(msg) {
+            els.toastMsg.textContent = msg;
+            els.toast.classList.remove('opacity-0');
+            els.toast.classList.add('opacity-100', '-translate-y-2');
+            setTimeout(() => {
+                els.toast.classList.remove('opacity-100', '-translate-y-2');
+                els.toast.classList.add('opacity-0');
+            }, 3000);
+        }
+
+    </script>
+</body>
+
+</html>
