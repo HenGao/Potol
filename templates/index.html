@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pothole Detection System</title>
+    <title>Pothole Detection System - Live Monitor</title>
     <style>
         * {
             margin: 0;
@@ -47,6 +47,20 @@
             opacity: 0.9;
         }
         
+        .live-indicator {
+            display: inline-block;
+            padding: 5px 15px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            margin-top: 10px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        
         .content {
             display: grid;
             grid-template-columns: 2fr 1fr;
@@ -70,6 +84,7 @@
             overflow: hidden;
             position: relative;
             aspect-ratio: 4/3;
+            border: 3px solid #28a745;
         }
         
         #videoFeed {
@@ -78,13 +93,32 @@
             object-fit: cover;
         }
         
-        .no-video {
+        .loading-overlay {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             color: white;
             text-align: center;
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+        }
+        
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 3px solid white;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
         
         .controls-section {
@@ -122,15 +156,15 @@
             text-transform: uppercase;
         }
         
-        .btn-start {
-            background: #28a745;
-            color: white;
+        .btn-restart {
+            background: #ffc107;
+            color: #333;
         }
         
-        .btn-start:hover {
-            background: #218838;
+        .btn-restart:hover {
+            background: #e0a800;
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+            box-shadow: 0 5px 15px rgba(255, 193, 7, 0.3);
         }
         
         .btn-stop {
@@ -205,12 +239,6 @@
             animation: pulse 1s infinite;
         }
         
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.7; }
-            100% { opacity: 1; }
-        }
-        
         .detection-log {
             max-height: 200px;
             overflow-y: auto;
@@ -228,24 +256,13 @@
             border-left: 3px solid #dc3545;
         }
         
-        .settings-group {
-            margin-top: 15px;
-        }
-        
-        .settings-group label {
-            display: block;
-            margin-bottom: 5px;
-            color: #6c757d;
-            font-weight: 600;
-        }
-        
-        .settings-group select,
-        .settings-group input {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ced4da;
-            border-radius: 5px;
-            font-size: 14px;
+        .camera-info {
+            background: #e3f2fd;
+            border: 1px solid #90caf9;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 15px;
+            color: #1565c0;
         }
     </style>
 </head>
@@ -254,28 +271,36 @@
         <div class="header">
             <h1>🚗 Pothole Detection System</h1>
             <p>Real-time road hazard detection using AI</p>
+            <div class="live-indicator">
+                🔴 LIVE MONITORING
+            </div>
         </div>
         
         <div class="content">
             <div class="video-section">
                 <div class="video-container">
-                    <img id="videoFeed" style="display: none;">
-                    <div class="no-video" id="noVideo">
-                        <h2>📹</h2>
-                        <p>Camera feed will appear here</p>
-                        <p>Click START to begin detection</p>
+                    <div class="loading-overlay" id="loadingOverlay">
+                        <div class="spinner"></div>
+                        <p>Initializing camera...</p>
                     </div>
+                    <img id="videoFeed">
                 </div>
             </div>
             
             <div class="controls-section">
                 <div class="control-panel">
+                    <h3>📹 Camera Status</h3>
+                    <div class="camera-info" id="cameraInfo">
+                        <strong>Camera:</strong> <span id="cameraIndex">Detecting...</span><br>
+                        <strong>Resolution:</strong> <span id="cameraResolution">...</span>
+                    </div>
+                    
                     <h3>🎮 Controls</h3>
                     <div class="button-group">
-                        <button id="startBtn" class="btn btn-start" onclick="startDetection()">
-                            ▶ Start
+                        <button id="restartBtn" class="btn btn-restart" onclick="restartDetection()">
+                            🔄 Restart
                         </button>
-                        <button id="stopBtn" class="btn btn-stop" onclick="stopDetection()" disabled>
+                        <button id="stopBtn" class="btn btn-stop" onclick="stopDetection()">
                             ⏹ Stop
                         </button>
                     </div>
@@ -283,14 +308,14 @@
                     <div class="stats">
                         <div class="stat-item">
                             <span class="stat-label">Status:</span>
-                            <span class="stat-value" id="systemStatus">Stopped</span>
+                            <span class="stat-value" id="systemStatus">Starting...</span>
                         </div>
                         <div class="stat-item">
                             <span class="stat-label">Frames Processed:</span>
                             <span class="stat-value" id="framesProcessed">0</span>
                         </div>
                         <div class="stat-item">
-                            <span class="stat-label">Potholes Detected:</span>
+                            <span class="stat-label">Total Potholes:</span>
                             <span class="stat-value" id="totalDetections">0</span>
                         </div>
                         <div class="stat-item">
@@ -299,31 +324,15 @@
                         </div>
                     </div>
                     
-                    <div class="status stopped" id="statusIndicator">
-                        System Stopped
-                    </div>
-                </div>
-                
-                <div class="control-panel">
-                    <h3>⚙️ Settings</h3>
-                    <div class="settings-group">
-                        <label for="cameraSelect">Camera Source:</label>
-                        <select id="cameraSelect">
-                            <option value="0">Default Camera (0)</option>
-                            <option value="1" selected>External Camera (1)</option>
-                            <option value="2">Camera 2</option>
-                        </select>
-                    </div>
-                    <div class="settings-group">
-                        <label for="intervalInput">Detection Interval (seconds):</label>
-                        <input type="number" id="intervalInput" value="1.0" min="0.5" max="5" step="0.5">
+                    <div class="status running" id="statusIndicator">
+                        🟢 Auto-Detection Active
                     </div>
                 </div>
                 
                 <div class="control-panel">
                     <h3>📊 Detection Log</h3>
                     <div class="detection-log" id="detectionLog">
-                        <p style="color: #6c757d; text-align: center;">No detections yet</p>
+                        <p style="color: #6c757d; text-align: center;">Waiting for detections...</p>
                     </div>
                 </div>
             </div>
@@ -331,20 +340,29 @@
     </div>
 
     <script>
-        let isRunning = false;
+        let isRunning = true;  // Assume it's running since we auto-start
         let statsInterval = null;
         let detectionsInterval = null;
         
-        function startDetection() {
-            fetch('/api/start', { method: 'POST' })
+        // Auto-initialize on page load
+        window.onload = function() {
+            console.log('Page loaded, initializing live feed...');
+            setTimeout(() => {
+                startVideoFeed();
+                startStatsUpdate();
+                startDetectionsUpdate();
+                updateUI();
+            }, 1000);  // Give the backend a second to initialize
+        };
+        
+        function restartDetection() {
+            fetch('/api/restart', { method: 'POST' })
                 .then(response => response.json())
                 .then(data => {
-                    if (data.status === 'success' || data.status === 'warning') {
+                    if (data.status === 'success') {
+                        console.log('Detection restarted');
                         isRunning = true;
                         updateUI();
-                        startVideoFeed();
-                        startStatsUpdate();
-                        startDetectionsUpdate();
                     }
                 })
                 .catch(error => console.error('Error:', error));
@@ -366,19 +384,19 @@
         }
         
         function updateUI() {
-            const startBtn = document.getElementById('startBtn');
+            const restartBtn = document.getElementById('restartBtn');
             const stopBtn = document.getElementById('stopBtn');
             const statusIndicator = document.getElementById('statusIndicator');
             const systemStatus = document.getElementById('systemStatus');
             
             if (isRunning) {
-                startBtn.disabled = true;
+                restartBtn.disabled = false;
                 stopBtn.disabled = false;
                 statusIndicator.className = 'status running';
                 statusIndicator.textContent = '🟢 Detection Running';
-                systemStatus.textContent = 'Running';
+                systemStatus.textContent = 'Active';
             } else {
-                startBtn.disabled = false;
+                restartBtn.disabled = false;
                 stopBtn.disabled = true;
                 statusIndicator.className = 'status stopped';
                 statusIndicator.textContent = '🔴 System Stopped';
@@ -388,23 +406,25 @@
         
         function startVideoFeed() {
             const videoFeed = document.getElementById('videoFeed');
-            const noVideo = document.getElementById('noVideo');
+            const loadingOverlay = document.getElementById('loadingOverlay');
             
             videoFeed.src = '/video_feed';
-            videoFeed.style.display = 'block';
-            noVideo.style.display = 'none';
+            videoFeed.onload = function() {
+                loadingOverlay.style.display = 'none';
+            };
         }
         
         function stopVideoFeed() {
             const videoFeed = document.getElementById('videoFeed');
-            const noVideo = document.getElementById('noVideo');
+            const loadingOverlay = document.getElementById('loadingOverlay');
             
             videoFeed.src = '';
-            videoFeed.style.display = 'none';
-            noVideo.style.display = 'block';
+            loadingOverlay.style.display = 'block';
+            loadingOverlay.innerHTML = '<p>Camera stopped</p>';
         }
         
         function startStatsUpdate() {
+            updateStats();  // Initial update
             statsInterval = setInterval(updateStats, 1000);
         }
         
@@ -424,11 +444,27 @@
                     document.getElementById('currentPotholes').textContent = 
                         data.latest_predictions ? data.latest_predictions.length : 0;
                     
+                    // Update camera info
+                    if (data.camera_index !== undefined) {
+                        document.getElementById('cameraIndex').textContent = `Camera ${data.camera_index}`;
+                        document.getElementById('cameraResolution').textContent = data.camera_resolution || 'Unknown';
+                    }
+                    
                     // Update status indicator if detecting potholes
                     if (data.latest_predictions && data.latest_predictions.length > 0) {
                         const statusIndicator = document.getElementById('statusIndicator');
                         statusIndicator.className = 'status detecting';
                         statusIndicator.textContent = `⚠️ ${data.latest_predictions.length} Pothole(s) Detected!`;
+                    } else if (isRunning) {
+                        const statusIndicator = document.getElementById('statusIndicator');
+                        statusIndicator.className = 'status running';
+                        statusIndicator.textContent = '🟢 Monitoring Road';
+                    }
+                    
+                    // Check if system is actually running
+                    if (data.is_running !== undefined) {
+                        isRunning = data.is_running;
+                        updateUI();
                     }
                 })
                 .catch(error => console.error('Error updating stats:', error));
@@ -473,38 +509,6 @@
                 })
                 .catch(error => console.error('Error updating detections:', error));
         }
-        
-        // Settings handlers
-        document.getElementById('cameraSelect').addEventListener('change', function(e) {
-            const camera = e.target.value;
-            fetch('/api/settings', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({camera: parseInt(camera)})
-            });
-        });
-        
-        document.getElementById('intervalInput').addEventListener('change', function(e) {
-            const interval = e.target.value;
-            fetch('/api/settings', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({interval: parseFloat(interval)})
-            });
-        });
-        
-        // Check initial status
-        fetch('/api/stats')
-            .then(response => response.json())
-            .then(data => {
-                if (data.is_running) {
-                    isRunning = true;
-                    updateUI();
-                    startVideoFeed();
-                    startStatsUpdate();
-                    startDetectionsUpdate();
-                }
-            });
     </script>
 </body>
 </html>

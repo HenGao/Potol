@@ -114,17 +114,30 @@ class PotholeDetector:
                 # Process frame
                 self._process_frame(frame)
                 
-            # Display frame (optional - remove for headless operation)
-            if self.current_frame is not None:
-                self._display_frame(self.current_frame)
+            # COMMENT OUT OR REMOVE THESE LINES:
+            # # Display frame (optional - remove for headless operation)
+            # if self.current_frame is not None:
+            #     self._display_frame(self.current_frame)
                 
-            # Check for 'q' key (backup stop method)
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord('q') or key == 27:  # 'q' or ESC
-                print("Stop key pressed")
-                self.running = False
+            # ALSO COMMENT OUT OR REMOVE THE cv2.waitKey CHECK:
+            # # Check for 'q' key (backup stop method)
+            # key = cv2.waitKey(1) & 0xFF
+            # if key == ord('q') or key == 27:  # 'q' or ESC
+            #     print("Stop key pressed")
+            #     self.running = False
+            #     break
+                
+    def reset_stats(self):
+        """Reset statistics"""
+        self.frame_count = 0
+        self.total_detections = 0
+        self.latest_predictions = []
+        while not self.detection_queue.empty():
+            try:
+                self.detection_queue.get_nowait()
+            except:
                 break
-                
+        
     def _process_frame(self, frame):
         """Process a single frame for pothole detection"""
         try:
@@ -142,17 +155,19 @@ class PotholeDetector:
             
             # Update statistics
             if predictions:
-                self.total_detections += len(predictions)
+                detection_count = len(predictions)
+                self.total_detections += detection_count
                 
                 # Add to queue for GUI/app consumption
                 self.detection_queue.put({
                     'timestamp': datetime.now().isoformat(),
                     'frame_number': self.frame_count,
-                    'detections': len(predictions),
+                    'detections': detection_count,
                     'predictions': predictions
                 })
                 
-                print(f"Frame {self.frame_count}: {len(predictions)} pothole(s) detected")
+                print(f"Frame {self.frame_count}: {detection_count} pothole(s) detected")
+                print(f"Total so far: {self.total_detections}")  # Debug line
                 
         except Exception as e:
             print(f"Detection error: {str(e)[:100]}")
@@ -207,13 +222,21 @@ class PotholeDetector:
         return self.current_frame
         
     def get_statistics(self):
-        """Get current statistics"""
-        return {
-            'frames_processed': self.frame_count,
-            'total_detections': self.total_detections,
-            'is_running': self.running,
-            'latest_predictions': self.latest_predictions
+        """Get current statistics with debug info"""
+        stats = {
+            'frames_processed': getattr(self, 'frame_count', 0),
+            'total_detections': getattr(self, 'total_detections', 0),
+            'is_running': getattr(self, 'running', False),
+            'latest_predictions': getattr(self, 'latest_predictions', []),
+            'debug_info': {
+                'has_frame_count': hasattr(self, 'frame_count'),
+                'has_total_detections': hasattr(self, 'total_detections'),
+                'actual_frame_count': self.frame_count if hasattr(self, 'frame_count') else 'missing',
+                'actual_total': self.total_detections if hasattr(self, 'total_detections') else 'missing'
+            }
         }
+        print(f"Returning stats: {stats}")  # Debug print
+        return stats
         
     def get_detections(self):
         """Get pending detections from queue"""
