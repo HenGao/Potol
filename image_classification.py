@@ -7,7 +7,7 @@ from datetime import datetime
 import queue
 
 class PotholeDetector:
-    def __init__(self, api_key="4MbQLuyWEuh3RWMV6pyv", camera_index=1):
+    def __init__(self, api_key="4MbQLuyWEuh3RWMV6pyv", camera_index=0):
         """Initialize the pothole detector"""
         self.client = InferenceHTTPClient(
             api_url="https://detect.roboflow.com",
@@ -30,24 +30,31 @@ class PotholeDetector:
         # Video capture
         self.cap = None
         
-        # Frame processing interval
+        # Frame processing interval - 1 frame per second for Pi
         self.process_interval = 1.0  # seconds
         
         # Queue for thread-safe communication
         self.detection_queue = queue.Queue()
         
     def initialize_camera(self):
-        """Initialize the camera"""
+        """Initialize the camera with lower resolution for Pi"""
         self.cap = cv2.VideoCapture(self.camera_index)
         if not self.cap.isOpened():
-            print(f"Camera {self.camera_index} not found, trying default camera")
-            self.cap = cv2.VideoCapture(0)
-            
-        if not self.cap.isOpened():
+            print(f"Camera {self.camera_index} not found")
             raise Exception("No camera available")
             
-        # Get camera properties
-        self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 30
+        # Set lower resolution for better performance on Pi
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)  # Lower resolution
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        
+        # Set buffer size to 1 to always get the latest frame
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        
+        # Set FPS to 1 to reduce capture rate
+        self.cap.set(cv2.CAP_PROP_FPS, 1)
+        
+        # Get actual camera properties
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 1
         self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         
@@ -61,9 +68,9 @@ class PotholeDetector:
             
         self.running = True
         self.thread = threading.Thread(target=self._detection_loop)
-        self.thread.daemon = True  # Thread will stop when main program stops
+        self.thread.daemon = True
         self.thread.start()
-        print("Pothole detection started")
+        print("Pothole detection started (1 FPS mode for Pi)")
         
     def stop(self):
         """Stop the detection"""
@@ -82,50 +89,49 @@ class PotholeDetector:
             self.cap.release()
             self.cap = None
             
-        cv2.destroyAllWindows()
         print("Pothole detection stopped")
         print(f"Summary: {self.frame_count} frames, {self.total_detections} detections")
         
     def _detection_loop(self):
-        """Main detection loop (runs in separate thread)"""
+        """Optimized detection loop for Raspberry Pi - truly 1 FPS"""
         try:
             self.initialize_camera()
         except Exception as e:
             print(f"Camera initialization failed: {e}")
             self.running = False
             return
-            
-        last_process_time = 0
         
         while self.running:
-            ret, frame = self.cap.read()
+            start_time = time.time()
+            
+            # Clear buffer and get fresh frame
+            # This ensures we get the latest frame, not an old buffered one
+            ret = False
+            for _ in range(5):  # Try to clear buffer
+                ret, frame = self.cap.read()
+                if ret:
+                    break
+                    
             if not ret:
                 print("Failed to read frame")
-                break
+                time.sleep(1)  # Wait before retry
+                continue
                 
+            # Store current frame for display
             self.current_frame = frame.copy()
-            current_time = time.time()
             
-            # Process one frame per interval
-            if current_time - last_process_time >= self.process_interval:
-                last_process_time = current_time
-                self.frame_count += 1
-                
-                # Process frame
-                self._process_frame(frame)
-                
-            # COMMENT OUT OR REMOVE THESE LINES:
-            # # Display frame (optional - remove for headless operation)
-            # if self.current_frame is not None:
-            #     self._display_frame(self.current_frame)
-                
-            # ALSO COMMENT OUT OR REMOVE THE cv2.waitKey CHECK:
-            # # Check for 'q' key (backup stop method)
-            # key = cv2.waitKey(1) & 0xFF
-            # if key == ord('q') or key == 27:  # 'q' or ESC
-            #     print("Stop key pressed")
-            #     self.running = False
-            #     break
+            # Process the frame
+            self.frame_count += 1
+            self._process_frame(frame)
+            
+            # Calculate how long to sleep to maintain 1 FPS
+            elapsed = time.time() - start_time
+            sleep_time = max(0, self.process_interval - elapsed)
+            
+            if sleep_time > 0:
+                time.sleep(sleep_time)
+            else:
+                print(f"Warning: Processing took {elapsed:.2f}s, longer than interval")
                 
     def reset_stats(self):
         """Reset statistics"""
@@ -137,10 +143,16 @@ class PotholeDetector:
                 self.detection_queue.get_nowait()
             except:
                 break
+        print("Stats reset")
         
     def _process_frame(self, frame):
         """Process a single frame for pothole detection"""
         try:
+            start = time.time()
+            
+            # Optional: Resize frame before sending to API to reduce bandwidth
+            # resized = cv2.resize(frame, (416, 416))  # YOLO typical size
+            
             # Run inference
             result = self.client.infer(frame, model_id=self.model_id)
             
@@ -166,77 +178,27 @@ class PotholeDetector:
                     'predictions': predictions
                 })
                 
-                print(f"Frame {self.frame_count}: {detection_count} pothole(s) detected")
-                print(f"Total so far: {self.total_detections}")  # Debug line
+                print(f"Frame {self.frame_count}: {detection_count} pothole(s) detected (took {time.time()-start:.2f}s)")
+            else:
+                print(f"Frame {self.frame_count}: Clear road (took {time.time()-start:.2f}s)")
                 
         except Exception as e:
             print(f"Detection error: {str(e)[:100]}")
-            
-    def _display_frame(self, frame):
-        """Display frame with annotations"""
-        display_frame = frame.copy()
-        
-        # Draw detections
-        for pred in self.latest_predictions:
-            if isinstance(pred, dict):
-                x = pred.get('x', 0)
-                y = pred.get('y', 0)
-                w = pred.get('width', 0)
-                h = pred.get('height', 0)
-                conf = pred.get('confidence', 0)
-                
-                if x and y:
-                    x1 = int(x - w/2)
-                    y1 = int(y - h/2)
-                    x2 = int(x + w/2)
-                    y2 = int(y + h/2)
-                    
-                    # Draw box
-                    cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 0, 255), 3)
-                    
-                    # Draw label
-                    label = f"Pothole {conf:.2f}"
-                    cv2.putText(display_frame, label, (x1, y1-10),
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-        
-        # Draw status
-        if self.latest_predictions:
-            status = f"⚠ {len(self.latest_predictions)} POTHOLE(S)"
-            color = (0, 0, 255)
-        else:
-            status = "✓ CLEAR ROAD"
-            color = (0, 255, 0)
-            
-        cv2.putText(display_frame, status, (10, 40),
-                   cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
-        
-        # Draw stats
-        cv2.putText(display_frame, f"Frame: {self.frame_count} | Total: {self.total_detections}", 
-                   (10, self.height - 20), cv2.FONT_HERSHEY_SIMPLEX, 
-                   0.5, (255, 255, 255), 1)
-        
-        cv2.imshow('Pothole Detection', display_frame)
         
     def get_current_frame(self):
         """Get the current frame (for GUI display)"""
         return self.current_frame
         
     def get_statistics(self):
-        """Get current statistics with debug info"""
-        stats = {
-            'frames_processed': getattr(self, 'frame_count', 0),
-            'total_detections': getattr(self, 'total_detections', 0),
-            'is_running': getattr(self, 'running', False),
-            'latest_predictions': getattr(self, 'latest_predictions', []),
-            'debug_info': {
-                'has_frame_count': hasattr(self, 'frame_count'),
-                'has_total_detections': hasattr(self, 'total_detections'),
-                'actual_frame_count': self.frame_count if hasattr(self, 'frame_count') else 'missing',
-                'actual_total': self.total_detections if hasattr(self, 'total_detections') else 'missing'
-            }
+        """Get current statistics"""
+        return {
+            'frames_processed': self.frame_count,
+            'total_detections': self.total_detections,
+            'is_running': self.running,
+            'latest_predictions': self.latest_predictions,
+            'camera_index': self.camera_index,
+            'camera_resolution': f"{self.width}x{self.height}" if hasattr(self, 'width') else "Unknown"
         }
-        print(f"Returning stats: {stats}")  # Debug print
-        return stats
         
     def get_detections(self):
         """Get pending detections from queue"""
@@ -247,20 +209,3 @@ class PotholeDetector:
             except:
                 break
         return detections
-    
-# # Simple console example
-# if __name__ == "__main__":
-#     # Create detector
-#     detector = PotholeDetector(camera_index=1)
-    
-#     try:
-#         # Start detection
-#         detector.start()
-        
-#         # Run for some time (your app would handle this differently)
-#         print("Press Enter to stop...")
-#         input()  # Wait for Enter key
-        
-#     finally:
-#         # Stop detection
-#         detector.stop()
