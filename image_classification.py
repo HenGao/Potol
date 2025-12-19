@@ -6,6 +6,7 @@ import base64
 import numpy as np
 from datetime import datetime
 import queue
+from picamera2 import Picamera2
 
 class PotholeDetector:
     def __init__(self, api_key="4MbQLuyWEuh3RWMV6pyv", camera_index=0, confidence_threshold=0.7):
@@ -39,28 +40,19 @@ class PotholeDetector:
         self.confidence_threshold = confidence_threshold
         
     def initialize_camera(self):
-        """Initialize the camera with lower resolution for Pi"""
-        self.cap = cv2.VideoCapture(self.camera_index)
-        if not self.cap.isOpened():
-            print(f"Camera {self.camera_index} not found")
-            raise Exception("No camera available")
-            
-        # Set lower resolution for better performance on Pi
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)  # Lower resolution
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        """Initialize Pi Camera Module using picamera2"""
+        self.cam = Picamera2()
+        config = self.cam.create_preview_configuration(main={"size": (640, 480), "format": "RGB888"})
+        self.cam.configure(config)
+        self.cam.start()
         
-        # Set buffer size to 1 to always get the latest frame
-        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        time.sleep(2)
         
-        # Set FPS to 1 to reduce capture rate
-        self.cap.set(cv2.CAP_PROP_FPS, 1)
+        self.width = 640
+        self.height = 480
+        self.fps = 1
         
-        # Get actual camera properties
-        self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 1
-        self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        
-        print(f"Camera initialized: {self.width}x{self.height} @ {self.fps}fps")
+        print(f"Pi Camera initialized: {self.width}x{self.height}")
         
     def start(self):
         """Start the detection in a separate thread"""
@@ -87,9 +79,9 @@ class PotholeDetector:
             self.thread.join(timeout=2)
             
         # Clean up
-        if self.cap:
-            self.cap.release()
-            self.cap = None
+        if hasattr(self, 'cam') and self.cam:
+            self.cam.stop()
+            self.cam = None
             
         print("Pothole detection stopped")
         print(f"Summary: {self.frame_count} frames, {self.total_detections} detections")
@@ -108,15 +100,10 @@ class PotholeDetector:
             
             # Clear buffer and get fresh frame
             # This ensures we get the latest frame, not an old buffered one
-            ret = False
-            for _ in range(5):  # Try to clear buffer
-                ret, frame = self.cap.read()
-                if ret:
-                    break
-                    
-            if not ret:
+            frame = self.cam.capture_array()
+            if frame is None:
                 print("Failed to read frame")
-                time.sleep(1)  # Wait before retry
+                time.sleep(1)
                 continue
                 
             # Store current frame for display
