@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command \"Invoke-WebRequest -Uri ''http://127.0.0.1:5000/api/stats'' -UseBasicParsing | Select-Object -ExpandProperty Content\")",
+      "Bash(powershell -Command:*)"
+    ]
+  }
+}

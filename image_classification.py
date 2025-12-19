@@ -1,13 +1,13 @@
 import cv2
 import time
 import threading
-from inference_sdk import InferenceHTTPClient
+from inference_client import InferenceHTTPClient
 import numpy as np
 from datetime import datetime
 import queue
 
 class PotholeDetector:
-    def __init__(self, api_key="4MbQLuyWEuh3RWMV6pyv", camera_index=0):
+    def __init__(self, api_key="4MbQLuyWEuh3RWMV6pyv", camera_index=0, confidence_threshold=0.7):
         """Initialize the pothole detector"""
         self.client = InferenceHTTPClient(
             api_url="https://detect.roboflow.com",
@@ -35,6 +35,9 @@ class PotholeDetector:
         
         # Queue for thread-safe communication
         self.detection_queue = queue.Queue()
+        
+        # Confidence threshold
+        self.confidence_threshold = confidence_threshold
         
     def initialize_camera(self):
         """Initialize the camera with lower resolution for Pi"""
@@ -146,28 +149,38 @@ class PotholeDetector:
         print("Stats reset")
         
     def _process_frame(self, frame):
-        """Process a single frame for pothole detection"""
+        """Process a single frame for pothole detection with confidence filtering"""
         try:
             start = time.time()
-            
-            # Optional: Resize frame before sending to API to reduce bandwidth
-            # resized = cv2.resize(frame, (416, 416))  # YOLO typical size
             
             # Run inference
             result = self.client.infer(frame, model_id=self.model_id)
             
             # Extract predictions
-            predictions = []
+            all_predictions = []
             if isinstance(result, dict):
-                predictions = result.get('predictions', [])
+                all_predictions = result.get('predictions', [])
             elif isinstance(result, list):
-                predictions = result
-                
-            self.latest_predictions = predictions
+                all_predictions = result
             
-            # Update statistics
-            if predictions:
-                detection_count = len(predictions)
+            # Filter predictions by confidence threshold
+            high_confidence_predictions = []
+            low_confidence_count = 0
+            
+            for pred in all_predictions:
+                if isinstance(pred, dict):
+                    confidence = pred.get('confidence', 0)
+                    if confidence >= self.confidence_threshold:
+                        high_confidence_predictions.append(pred)
+                    else:
+                        low_confidence_count += 1
+            
+            # Store only high confidence predictions
+            self.latest_predictions = high_confidence_predictions
+            
+            # Update statistics for high confidence detections
+            if high_confidence_predictions:
+                detection_count = len(high_confidence_predictions)
                 self.total_detections += detection_count
                 
                 # Add to queue for GUI/app consumption
@@ -175,12 +188,23 @@ class PotholeDetector:
                     'timestamp': datetime.now().isoformat(),
                     'frame_number': self.frame_count,
                     'detections': detection_count,
-                    'predictions': predictions
+                    'predictions': high_confidence_predictions,
+                    'low_confidence_filtered': low_confidence_count
                 })
                 
-                print(f"Frame {self.frame_count}: {detection_count} pothole(s) detected (took {time.time()-start:.2f}s)")
+                # Show confidence values in output
+                confidences = [f"{p.get('confidence', 0):.2f}" for p in high_confidence_predictions]
+                print(f"Frame {self.frame_count}: ⚠️ {detection_count} pothole(s) detected")
+                print(f"  Confidences: {', '.join(confidences)}")
+                if low_confidence_count > 0:
+                    print(f"  Filtered out {low_confidence_count} low-confidence detection(s)")
+                print(f"  Processing time: {time.time()-start:.2f}s")
             else:
-                print(f"Frame {self.frame_count}: Clear road (took {time.time()-start:.2f}s)")
+                if low_confidence_count > 0:
+                    print(f"Frame {self.frame_count}: ✓ Clear road ({low_confidence_count} low-confidence detection(s) filtered)")
+                else:
+                    print(f"Frame {self.frame_count}: ✓ Clear road")
+                print(f"  Processing time: {time.time()-start:.2f}s")
                 
         except Exception as e:
             print(f"Detection error: {str(e)[:100]}")
@@ -189,6 +213,14 @@ class PotholeDetector:
         """Get the current frame (for GUI display)"""
         return self.current_frame
         
+    def set_confidence_threshold(self, threshold):
+        """Set the confidence threshold for detections"""
+        if 0.0 <= threshold <= 1.0:
+            self.confidence_threshold = threshold
+            print(f"Confidence threshold set to: {threshold:.2f}")
+        else:
+            print(f"Invalid threshold: {threshold}. Must be between 0.0 and 1.0")
+
     def get_statistics(self):
         """Get current statistics"""
         return {
@@ -197,7 +229,8 @@ class PotholeDetector:
             'is_running': self.running,
             'latest_predictions': self.latest_predictions,
             'camera_index': self.camera_index,
-            'camera_resolution': f"{self.width}x{self.height}" if hasattr(self, 'width') else "Unknown"
+            'camera_resolution': f"{self.width}x{self.height}" if hasattr(self, 'width') else "Unknown",
+            'confidence_threshold': self.confidence_threshold
         }
         
     def get_detections(self):

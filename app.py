@@ -91,6 +91,20 @@ def stop_detection():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+@app.route('/api/confidence', methods=['POST'])
+def set_confidence():
+    """Set confidence threshold"""
+    try:
+        data = request.json
+        if 'threshold' in data:
+            threshold = float(data['threshold'])
+            if detector:
+                detector.set_confidence_threshold(threshold)
+                return jsonify({'status': 'success', 'threshold': threshold})
+        return jsonify({'status': 'error', 'message': 'Invalid threshold'}), 400
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 @app.route('/api/restart', methods=['POST'])
 def restart_detection():
     """Restart detection (stop and start)"""
