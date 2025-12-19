@@ -1,7 +1,8 @@
 import cv2
 import time
 import threading
-from inference_client import InferenceHTTPClient
+import requests
+import base64
 import numpy as np
 from datetime import datetime
 import queue
@@ -9,10 +10,8 @@ import queue
 class PotholeDetector:
     def __init__(self, api_key="4MbQLuyWEuh3RWMV6pyv", camera_index=0, confidence_threshold=0.7):
         """Initialize the pothole detector"""
-        self.client = InferenceHTTPClient(
-            api_url="https://detect.roboflow.com",
-            api_key=api_key
-        )
+        self.api_key = api_key
+        self.api_url = "https://detect.roboflow.com"
         
         self.camera_index = camera_index
         self.model_id = "pothole-detection-yolov8/1"
@@ -154,7 +153,18 @@ class PotholeDetector:
             start = time.time()
             
             # Run inference
-            result = self.client.infer(frame, model_id=self.model_id)
+            # Encode frame to base64
+            _, buffer = cv2.imencode('.jpg', frame)
+            img_base64 = base64.b64encode(buffer).decode('utf-8')
+
+            # Call Roboflow API directly
+            response = requests.post(
+                f"{self.api_url}/{self.model_id}",
+                params={"api_key": self.api_key},
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                data=img_base64
+            )
+            result = response.json()
             
             # Extract predictions
             all_predictions = []
